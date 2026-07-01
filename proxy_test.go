@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -21,6 +22,12 @@ func fakeUpstream() *httptest.Server {
 		case "/v1/models":
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, `{"data":[{"id":"claude-opus-4-8"}]}`)
+		case "/v1/gz":
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+			gz := gzip.NewWriter(w)
+			io.WriteString(gz, `{"hello":"world","n":42}`)
+			gz.Close()
 		case "/v1/messages":
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(http.StatusOK)
@@ -89,6 +96,39 @@ func TestProxyCapturesSessions(t *testing.T) {
 	h2 := readHARWait(t, filepath.Join(dir, "s2.har"), 1)
 	if got := len(h2.Log.Entries); got != 1 {
 		t.Fatalf("s2: want 1 entry, got %d", got)
+	}
+}
+
+func TestGzipResponseStoredDecompressed(t *testing.T) {
+	upstream := fakeUpstream()
+	defer upstream.Close()
+	base, _ := url.Parse(upstream.URL)
+	dir := t.TempDir()
+	store, _ := NewStore(dir, false)
+	proxy := httptest.NewServer(newProxy(&Config{Base: base, SessionHeader: "Session-Id"}, store))
+	defer proxy.Close()
+
+	// Go's client transparently negotiates + decompresses gzip end-to-end.
+	body := doReq(t, proxy.URL+"/v1/gz", "GET", "", "s-gz")
+	if !strings.Contains(body, `"hello"`) {
+		t.Fatalf("client did not receive decoded gzip body: %q", body)
+	}
+
+	h := readHARWait(t, filepath.Join(dir, "s-gz.har"), 1)
+	c := h.Log.Entries[0].Response.Content
+	if c.Encoding == "base64" {
+		t.Fatalf("gzip body should be stored decompressed, not base64: %+v", c)
+	}
+	if !strings.Contains(c.Text, `"hello":"world"`) {
+		t.Fatalf("content.text not the decompressed JSON: %q", c.Text)
+	}
+	if c.Size != len(`{"hello":"world","n":42}`) {
+		t.Fatalf("content.size should be the decompressed length, got %d", c.Size)
+	}
+	// bodySize is the wire (compressed) length, tracked separately from the
+	// decompressed content.size (gzip overhead can make a tiny body larger).
+	if h.Log.Entries[0].Response.BodySize == c.Size {
+		t.Fatalf("bodySize (wire) and content.size (decompressed) should differ; both=%d", c.Size)
 	}
 }
 

@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
+	"compress/zlib"
 	"encoding/json"
 	"io"
 	"log"
@@ -14,10 +17,11 @@ import (
 )
 
 type Config struct {
-	Base          *url.URL
-	SessionHeader string
-	HideAuth      bool
-	Verbose       bool
+	Base           *url.URL
+	SessionHeader  string
+	AcceptEncoding string // if non-empty, overrides the outbound Accept-Encoding
+	HideAuth       bool
+	Verbose        bool
 }
 
 // newProxy builds a ReverseProxy that retargets onto cfg.Base, streams
@@ -28,6 +32,9 @@ func newProxy(cfg *Config, store *Store) *httputil.ReverseProxy {
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(cfg.Base)         // scheme + host + base-path join
 			r.Out.Host = cfg.Base.Host // upstream Host header (not the inbound one)
+			if cfg.AcceptEncoding != "" {
+				r.Out.Header.Set("Accept-Encoding", cfg.AcceptEncoding)
+			}
 			// Not calling SetXForwarded(): forward the request untouched.
 		},
 		FlushInterval: -1,
@@ -145,6 +152,18 @@ func (r *record) finalize(respBody []byte) {
 	wait := ms(r.firstByte.Sub(r.start))
 	receive := ms(end.Sub(r.firstByte))
 
+	// HAR content.text must be the *decoded* body. respBody is the raw wire
+	// bytes (possibly gzip/deflate); decompress so tools render it. The client
+	// still received the original compressed stream via the tee.
+	enc := r.respHeader.Get("Content-Encoding")
+	content := bodyContent(respBody, r.respMime)
+	if decoded, ok := decodeContentEncoding(respBody, enc); ok {
+		content = bodyContent(decoded, r.respMime)
+		content.Compression = len(decoded) - len(respBody)
+	} else if content.Encoding == "base64" && enc != "" {
+		log.Printf("note: %s response stored base64 (not decoded) — set -accept-encoding=gzip for a readable HAR", enc)
+	}
+
 	entry := HarEntry{
 		Pageref:         pageID,
 		StartedDateTime: isoTime(r.start),
@@ -165,10 +184,10 @@ func (r *record) finalize(respBody []byte) {
 			HTTPVersion: r.proto,
 			Headers:     headerNVs(r.respHeader, cfg.HideAuth),
 			Cookies:     []HarNV{},
-			Content:     bodyContent(respBody, r.respMime),
+			Content:     content,
 			RedirectURL: r.respHeader.Get("Location"),
 			HeadersSize: -1,
-			BodySize:    len(respBody),
+			BodySize:    len(respBody), // bytes on the wire (compressed)
 		},
 		Timings: unmeasuredTimings(send, wait, receive),
 	}
@@ -220,6 +239,43 @@ func errorEntry(r *http.Request, cause error) HarEntry {
 			BodySize:    0,
 		},
 		Timings: unmeasuredTimings(0, 0, 0),
+	}
+}
+
+// decodeContentEncoding decompresses body per the response Content-Encoding.
+// Returns (decoded, true) when it handled the encoding, or (body, false) for
+// identity/empty or an encoding we can't decode with the stdlib (br, zstd).
+func decodeContentEncoding(body []byte, enc string) ([]byte, bool) {
+	switch strings.ToLower(strings.TrimSpace(enc)) {
+	case "gzip", "x-gzip":
+		zr, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			return body, false
+		}
+		defer zr.Close()
+		out, err := io.ReadAll(zr)
+		if err != nil {
+			return body, false
+		}
+		return out, true
+	case "deflate":
+		// "deflate" is zlib-wrapped (RFC 1950) in practice, but some servers
+		// send raw DEFLATE (RFC 1951) — try zlib first, then raw flate.
+		if zr, err := zlib.NewReader(bytes.NewReader(body)); err == nil {
+			out, err := io.ReadAll(zr)
+			zr.Close()
+			if err == nil {
+				return out, true
+			}
+		}
+		fr := flate.NewReader(bytes.NewReader(body))
+		defer fr.Close()
+		if out, err := io.ReadAll(fr); err == nil {
+			return out, true
+		}
+		return body, false
+	default:
+		return body, false // "", "identity", "br", "zstd", …
 	}
 }
 

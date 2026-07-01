@@ -35,7 +35,7 @@ Point a Claude client (Claude Code, the SDK, `curl`) at the proxy instead of
 
 ```
 claude-har [-port 8787] [-out ./sessions] [-session-header Session-Id]
-           [-hide-auth] [-pretty] [-verbose]
+           [-accept-encoding ""] [-hide-auth] [-pretty] [-verbose]
 ```
 
 | Flag / env | Default | Purpose |
@@ -44,6 +44,7 @@ claude-har [-port 8787] [-out ./sessions] [-session-header Session-Id]
 | `-out` / `HAR_OUT` | `./sessions` | Directory for `.har` files |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Upstream target |
 | `-session-header` | `X-Claude-Code-Session-Id` | Header used to group entries into a file |
+| `-accept-encoding` | passthrough | Override outbound `Accept-Encoding` (e.g. `identity`); empty forwards the client's header |
 | `-hide-auth` | on | Redact the authentication header (`x-api-key` / `authorization`); `-hide-auth=false` to keep it |
 | `-pretty` | off | Pretty-print the HAR JSON |
 | `-verbose` | off | Print the full HAR entry (JSON) for each request to stderr |
@@ -136,6 +137,10 @@ Details:
 
 - **SSE streaming** — `FlushInterval = -1` + tee; never buffer before the client.
 - **Binary / non-UTF-8 bodies** — base64 with `encoding: "base64"`.
+- **Compressed responses** — `gzip`/`deflate` bodies are decompressed for
+  `content.text` (stdlib) so viewers render them; the client still receives the
+  original compressed stream via the tee. `br`/`zstd` fall back to base64 unless
+  `-accept-encoding` forces a decodable encoding.
 - **Upstream errors / non-2xx** — recorded like any other entry (status carried
   through). If `RoundTrip` fails, `ReverseProxy` returns `502`; record an entry
   with the error via `ErrorHandler`.

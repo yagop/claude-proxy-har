@@ -106,10 +106,11 @@ type HarResponse struct {
 }
 
 type HarContent struct {
-	Size     int    `json:"size"`
-	MimeType string `json:"mimeType"`
-	Text     string `json:"text,omitempty"`
-	Encoding string `json:"encoding,omitempty"`
+	Size        int    `json:"size"`
+	Compression int    `json:"compression,omitempty"`
+	MimeType    string `json:"mimeType"`
+	Text        string `json:"text,omitempty"`
+	Encoding    string `json:"encoding,omitempty"`
 }
 
 const pageID = "page_1"

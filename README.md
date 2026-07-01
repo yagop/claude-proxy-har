@@ -32,6 +32,7 @@ ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-har -port 8787
 | `-out` / `HAR_OUT` | `./sessions` | Directory for `.har` files |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Upstream target |
 | `-session-header` | `X-Claude-Code-Session-Id` | Request header used to group entries into a file |
+| `-accept-encoding` | passthrough | Override the outbound `Accept-Encoding` (e.g. `identity` to disable compression). Empty forwards the client's header unchanged |
 | `-hide-auth` | **on** | Redact the authentication header (`x-api-key` / `authorization`) in stored HARs. Pass `-hide-auth=false` to keep it |
 | `-pretty` | off | Pretty-print the HAR JSON |
 | `-verbose` | off | Print the full HAR entry (JSON) for each request to stderr |
@@ -48,6 +49,11 @@ ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-har -port 8787
   append to the existing file.
 - Output is valid HAR 1.2 and imports into Safari Web Inspector (Network →
   Import), Chrome DevTools, and Firefox.
+- Compressed responses (`gzip`/`deflate`) are stored **decompressed** in
+  `content.text` so viewers render the JSON (the client still receives the
+  original compressed stream). `br`/`zstd` aren't decoded (stdlib-only) — force
+  a decodable encoding with `-accept-encoding=gzip` or `-accept-encoding=identity`
+  if your upstream negotiates those.
 
 Load a produced `.har` in Chrome DevTools (Network tab → Import HAR) to inspect.
 
