@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	creatorName = "claude-har"
+	creatorName = "claude-proxy-har"
 	version     = "0.1.0"
 )
 
@@ -51,7 +51,7 @@ func main() {
 	srv := &http.Server{Addr: ":" + *port, Handler: newProxy(cfg, store)}
 
 	go func() {
-		log.Printf("claude-har listening on :%s", *port)
+		log.Printf("claude-proxy-har listening on :%s", *port)
 		log.Printf("  upstream:       %s", base)
 		log.Printf("  out dir:        %s", *out)
 		log.Printf("  session header: %s", *sessionHeader)

@@ -1,4 +1,4 @@
-# PLAN.md — `claude-har`: record Claude sessions as HAR files
+# PLAN.md — `claude-proxy-har`: record Claude sessions as HAR files
 
 A small CLI that runs a local HTTP proxy. It forwards every request to the
 Anthropic API (or any compatible base URL) and records each request/response
@@ -34,7 +34,7 @@ Point a Claude client (Claude Code, the SDK, `curl`) at the proxy instead of
 ## CLI interface
 
 ```
-claude-har [-port 8787] [-out ./sessions] [-session-header Session-Id]
+claude-proxy-har [-port 8787] [-out ./sessions] [-session-header Session-Id]
            [-accept-encoding ""] [-hide-auth] [-pretty] [-verbose]
 ```
 
@@ -115,7 +115,7 @@ Details:
 - **headers** — the authentication header (`x-api-key` / `authorization`) is
   redacted to `"REDACTED"` by default (`-hide-auth`, on); `-hide-auth=false`
   stores it verbatim.
-- `creator: {name: "claude-har", version}`.
+- `creator: {name: "claude-proxy-har", version}`.
 
 ## Session grouping & persistence (`store.go`)
 

@@ -1,4 +1,4 @@
-# claude-har
+# claude-proxy-har
 
 A tiny reverse proxy that records Claude API sessions as [HAR](http://www.softwareishard.com/blog/har-12-spec/) files.
 
@@ -8,8 +8,8 @@ request/response is captured into a `.har` file — one file per session.
 ## Build & run
 
 ```sh
-go build -o claude-har .
-./claude-har -port 8787 -out ./sessions
+go build -o claude-proxy-har .
+./claude-proxy-har -port 8787 -out ./sessions
 ```
 
 Then point the client at the proxy:
@@ -21,7 +21,7 @@ ANTHROPIC_BASE_URL=http://localhost:8787 claude
 Route to a non-Anthropic upstream by setting `ANTHROPIC_BASE_URL` on the proxy:
 
 ```sh
-ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-har -port 8787
+ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-proxy-har -port 8787
 ```
 
 ## Flags & env
@@ -65,7 +65,7 @@ extract with `jq`.
 
 ```sh
 # 1. Proxy running on :8787, writing to ./sessions
-./claude-har -port 8787 -out ./sessions &
+./claude-proxy-har -port 8787 -out ./sessions &
 
 # 2. One capture per model (--no-session-persistence → each run gets its own .har)
 mkdir -p system-prompts

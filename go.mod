@@ -1,3 +1,3 @@
-module claude-har
+module claude-proxy-har
 
 go 1.22
