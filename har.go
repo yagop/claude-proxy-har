@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -199,4 +200,15 @@ func nowISO() string { return isoTime(time.Now()) }
 
 func ms(d time.Duration) float64 {
 	return float64(d.Nanoseconds()) / 1e6
+}
+
+func humanBytes(n int) string {
+	switch {
+	case n < 1024:
+		return fmt.Sprintf("%dB", n)
+	case n < 1024*1024:
+		return fmt.Sprintf("%.1fKB", float64(n)/1024)
+	default:
+		return fmt.Sprintf("%.1fMB", float64(n)/(1024*1024))
+	}
 }

@@ -32,9 +32,9 @@ ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-har -port 8787
 | `-out` / `HAR_OUT` | `./sessions` | Directory for `.har` files |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Upstream target |
 | `-session-header` | `X-Claude-Code-Session-Id` | Request header used to group entries into a file |
-| `-redact` | off | Redact `x-api-key` / `authorization` in stored headers |
+| `-hide-auth` | **on** | Redact the authentication header (`x-api-key` / `authorization`) in stored HARs. Pass `-hide-auth=false` to keep it |
 | `-pretty` | off | Pretty-print the HAR JSON |
-| `-verbose` | off | Log each proxied request to stderr |
+| `-verbose` | off | Print the full HAR entry (JSON) for each request to stderr |
 
 ## How it works
 

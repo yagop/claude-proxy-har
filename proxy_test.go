@@ -51,7 +51,7 @@ func TestProxyCapturesSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := &Config{Base: base, SessionHeader: "Session-Id", Redact: true}
+	cfg := &Config{Base: base, SessionHeader: "Session-Id", HideAuth: true}
 
 	proxy := httptest.NewServer(newProxy(cfg, store))
 	defer proxy.Close()
@@ -102,7 +102,12 @@ func TestMissingSessionHeaderGoesToUnknown(t *testing.T) {
 	defer proxy.Close()
 
 	doReq(t, proxy.URL+"/v1/models", "GET", "", "") // no Session-Id
-	readHARWait(t, filepath.Join(dir, "unknown.har"), 1)
+	h := readHARWait(t, filepath.Join(dir, "unknown.har"), 1)
+
+	// HideAuth defaults to false in this Config → auth header stored in clear.
+	if !hasHeader(h.Log.Entries[0].Request.Headers, "X-Api-Key", "sk-secret") {
+		t.Fatalf("x-api-key should not be redacted when HideAuth is off: %+v", h.Log.Entries[0].Request.Headers)
+	}
 }
 
 func doReq(t *testing.T, target, method, body, session string) string {

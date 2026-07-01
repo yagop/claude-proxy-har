@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 type Config struct {
 	Base          *url.URL
 	SessionHeader string
-	Redact        bool
+	HideAuth      bool
 	Verbose       bool
 }
 
@@ -32,9 +33,7 @@ func newProxy(cfg *Config, store *Store) *httputil.ReverseProxy {
 		FlushInterval: -1,
 		Transport:     &captureTransport{cfg: cfg, store: store, base: http.DefaultTransport},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			if cfg.Verbose {
-				log.Printf("proxy error: %v", err)
-			}
+			log.Printf("upstream error: %s %s: %v", r.Method, r.URL.Path, err)
 			_ = store.Add(r.Header.Get(cfg.SessionHeader), errorEntry(r, err))
 			w.WriteHeader(http.StatusBadGateway)
 		},
@@ -61,15 +60,15 @@ func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	session := req.Header.Get(t.cfg.SessionHeader)
 
+	if t.cfg.Verbose {
+		log.Printf("→ %s %s (upstream %s)", req.Method, req.URL.RequestURI(), req.URL.Host)
+	}
+
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
 	firstByte := time.Now()
-
-	if t.cfg.Verbose {
-		log.Printf("%s %s -> %d [%s]", req.Method, req.URL.Path, resp.StatusCode, sanitize(session))
-	}
 
 	rec := &record{
 		t:          t,
@@ -77,6 +76,7 @@ func (t *captureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		firstByte:  firstByte,
 		session:    session,
 		method:     req.Method,
+		path:       req.URL.RequestURI(),
 		url:        req.URL.String(),
 		reqHeader:  req.Header.Clone(),
 		reqBody:    reqBody,
@@ -124,6 +124,7 @@ type record struct {
 	firstByte  time.Time
 	session    string
 	method     string
+	path       string
 	url        string
 	reqHeader  http.Header
 	reqBody    []byte
@@ -152,7 +153,7 @@ func (r *record) finalize(respBody []byte) {
 			Method:      r.method,
 			URL:         r.url,
 			HTTPVersion: "HTTP/1.1",
-			Headers:     headerNVs(r.reqHeader, cfg.Redact),
+			Headers:     headerNVs(r.reqHeader, cfg.HideAuth),
 			QueryString: queryNVs(r.query),
 			Cookies:     []HarNV{},
 			HeadersSize: -1,
@@ -162,7 +163,7 @@ func (r *record) finalize(respBody []byte) {
 			Status:      r.status,
 			StatusText:  r.statusText,
 			HTTPVersion: r.proto,
-			Headers:     headerNVs(r.respHeader, cfg.Redact),
+			Headers:     headerNVs(r.respHeader, cfg.HideAuth),
 			Cookies:     []HarNV{},
 			Content:     bodyContent(respBody, r.respMime),
 			RedirectURL: r.respHeader.Get("Location"),
@@ -178,8 +179,16 @@ func (r *record) finalize(respBody []byte) {
 		}
 	}
 
-	if err := r.t.store.Add(r.session, entry); err != nil && cfg.Verbose {
-		log.Printf("store error: %v", err)
+	log.Printf("%s %s → %d  session=%s  %.0fms  %s",
+		r.method, r.path, r.status, sanitize(r.session), entry.Time, humanBytes(len(respBody)))
+	if cfg.Verbose {
+		if b, err := json.MarshalIndent(entry, "", "  "); err == nil {
+			log.Printf("HAR entry:\n%s", b)
+		}
+	}
+
+	if err := r.t.store.Add(r.session, entry); err != nil {
+		log.Printf("store error [session=%s]: %v", sanitize(r.session), err)
 	}
 }
 

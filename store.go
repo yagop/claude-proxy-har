@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -33,17 +34,22 @@ func (s *Store) Add(session string, e HarEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log, ok := s.logs[key]
+	hlog, ok := s.logs[key]
 	if !ok {
-		log = s.load(key)
-		s.logs[key] = log
+		hlog = s.load(key)
+		s.logs[key] = hlog
+		if n := len(hlog.Entries); n > 0 {
+			log.Printf("session %s -> %s (appending, %d existing)", key, s.path(key), n)
+		} else {
+			log.Printf("session %s -> %s (new)", key, s.path(key))
+		}
 	}
-	log.Entries = append(log.Entries, e)
+	hlog.Entries = append(hlog.Entries, e)
 	// Keep the page's start no later than its first entry.
-	if len(log.Entries) == 1 && len(log.Pages) > 0 {
-		log.Pages[0].StartedDateTime = e.StartedDateTime
+	if len(hlog.Entries) == 1 && len(hlog.Pages) > 0 {
+		hlog.Pages[0].StartedDateTime = e.StartedDateTime
 	}
-	return s.write(key, log)
+	return s.write(key, hlog)
 }
 
 // load reads an existing .har for the key so re-runs append to it, or returns a
@@ -65,12 +71,12 @@ func (s *Store) load(key string) *HarLog {
 }
 
 // write serializes the log and swaps it in atomically via a temp file + rename.
-func (s *Store) write(key string, log *HarLog) error {
+func (s *Store) write(key string, hlog *HarLog) error {
 	var (
 		data []byte
 		err  error
 	)
-	h := HAR{Log: *log}
+	h := HAR{Log: *hlog}
 	if s.pretty {
 		data, err = json.MarshalIndent(h, "", "  ")
 	} else {

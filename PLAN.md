@@ -35,7 +35,7 @@ Point a Claude client (Claude Code, the SDK, `curl`) at the proxy instead of
 
 ```
 claude-har [-port 8787] [-out ./sessions] [-session-header Session-Id]
-           [-redact] [-pretty] [-verbose]
+           [-hide-auth] [-pretty] [-verbose]
 ```
 
 | Flag / env | Default | Purpose |
@@ -44,9 +44,9 @@ claude-har [-port 8787] [-out ./sessions] [-session-header Session-Id]
 | `-out` / `HAR_OUT` | `./sessions` | Directory for `.har` files |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Upstream target |
 | `-session-header` | `X-Claude-Code-Session-Id` | Header used to group entries into a file |
-| `-redact` | off | Redact `x-api-key` / `authorization` in stored headers |
+| `-hide-auth` | on | Redact the authentication header (`x-api-key` / `authorization`); `-hide-auth=false` to keep it |
 | `-pretty` | off | Pretty-print the HAR JSON |
-| `-verbose` | off | Log each proxied request to stderr |
+| `-verbose` | off | Print the full HAR entry (JSON) for each request to stderr |
 
 Usage:
 
@@ -111,8 +111,9 @@ Details:
   (`text/event-stream`) responses are captured as the full concatenated SSE
   text, which is exactly what a replay needs. Non-UTF-8/binary bodies are
   base64 with `encoding: "base64"`.
-- **headers** — with `-redact`, `x-api-key` and `authorization` values become
-  `"REDACTED"`.
+- **headers** — the authentication header (`x-api-key` / `authorization`) is
+  redacted to `"REDACTED"` by default (`-hide-auth`, on); `-hide-auth=false`
+  stores it verbatim.
 - `creator: {name: "claude-har", version}`.
 
 ## Session grouping & persistence (`store.go`)
@@ -169,7 +170,7 @@ Flat package `main` — fewest files, no premature `internal/` split.
    confirm the client streams normally and the SSE body is captured intact.
 4. **Session grouping** — split entries by header into per-session files with
    serialized atomic writes; append on restart.
-5. **Polish** — `-redact`, `-pretty`, `-verbose`, graceful shutdown flush,
+5. **Polish** — `-hide-auth`, `-pretty`, `-verbose`, graceful shutdown flush,
    filename sanitization, base64 for binary.
 
 ## Verification

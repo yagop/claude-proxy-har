@@ -22,9 +22,9 @@ func main() {
 	port := flag.String("port", envOr("PORT", "8787"), "port to listen on")
 	out := flag.String("out", envOr("HAR_OUT", "./sessions"), "directory for .har files")
 	sessionHeader := flag.String("session-header", "X-Claude-Code-Session-Id", "request header used to group entries into a file")
-	redact := flag.Bool("redact", false, "redact x-api-key / authorization in stored headers")
+	hideAuth := flag.Bool("hide-auth", true, "redact the authentication header (x-api-key / authorization) in stored HARs; pass -hide-auth=false to keep it")
 	pretty := flag.Bool("pretty", false, "pretty-print HAR JSON")
-	verbose := flag.Bool("verbose", false, "log each proxied request")
+	verbose := flag.Bool("verbose", false, "print the full HAR entry (JSON) for each request to stderr")
 	flag.Parse()
 
 	baseRaw := envOr("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
@@ -42,15 +42,18 @@ func main() {
 	cfg := &Config{
 		Base:          base,
 		SessionHeader: *sessionHeader,
-		Redact:        *redact,
+		HideAuth:      *hideAuth,
 		Verbose:       *verbose,
 	}
 
 	srv := &http.Server{Addr: ":" + *port, Handler: newProxy(cfg, store)}
 
 	go func() {
-		log.Printf("claude-har listening on :%s -> %s (out=%s, session-header=%s)",
-			*port, base, *out, *sessionHeader)
+		log.Printf("claude-har listening on :%s", *port)
+		log.Printf("  upstream:       %s", base)
+		log.Printf("  out dir:        %s", *out)
+		log.Printf("  session header: %s", *sessionHeader)
+		log.Printf("  hide auth:      %v   pretty: %v   verbose: %v", *hideAuth, *pretty, *verbose)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}
