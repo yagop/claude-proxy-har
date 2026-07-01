@@ -169,12 +169,14 @@ func (r *record) finalize(respBody []byte) {
 		StartedDateTime: isoTime(r.start),
 		Time:            send + wait + receive,
 		Request: HarRequest{
-			Method:      r.method,
-			URL:         r.url,
-			HTTPVersion: "HTTP/1.1",
+			Method: r.method,
+			URL:    r.url,
+			// Request and response share the connection, so the response's
+			// negotiated protocol is the request's actual wire version too.
+			HTTPVersion: r.proto,
 			Headers:     headerNVs(r.reqHeader, cfg.HideAuth),
 			QueryString: queryNVs(r.query),
-			Cookies:     []HarNV{},
+			Cookies:     requestCookies(r.reqHeader),
 			HeadersSize: -1,
 			BodySize:    len(r.reqBody),
 		},
@@ -183,7 +185,7 @@ func (r *record) finalize(respBody []byte) {
 			StatusText:  r.statusText,
 			HTTPVersion: r.proto,
 			Headers:     headerNVs(r.respHeader, cfg.HideAuth),
-			Cookies:     []HarNV{},
+			Cookies:     responseCookies(r.respHeader),
 			Content:     content,
 			RedirectURL: r.respHeader.Get("Location"),
 			HeadersSize: -1,
@@ -220,10 +222,10 @@ func errorEntry(r *http.Request, cause error) HarEntry {
 		Request: HarRequest{
 			Method:      r.Method,
 			URL:         r.URL.String(),
-			HTTPVersion: "HTTP/1.1",
+			HTTPVersion: orDefaultProto(r.Proto),
 			Headers:     []HarNV{},
 			QueryString: queryNVs(r.URL.Query()),
-			Cookies:     []HarNV{},
+			Cookies:     requestCookies(r.Header),
 			HeadersSize: -1,
 			BodySize:    0,
 		},
@@ -232,7 +234,7 @@ func errorEntry(r *http.Request, cause error) HarEntry {
 			StatusText:  "Bad Gateway",
 			HTTPVersion: "HTTP/1.1",
 			Headers:     []HarNV{},
-			Cookies:     []HarNV{},
+			Cookies:     []HarCookie{},
 			Content:     bodyContent([]byte(cause.Error()), "text/plain"),
 			RedirectURL: "",
 			HeadersSize: -1,
@@ -277,6 +279,13 @@ func decodeContentEncoding(body []byte, enc string) ([]byte, bool) {
 	default:
 		return body, false // "", "identity", "br", "zstd", …
 	}
+}
+
+func orDefaultProto(p string) string {
+	if p == "" {
+		return "HTTP/1.1"
+	}
+	return p
 }
 
 // statusText extracts "OK" from a "200 OK" status line.

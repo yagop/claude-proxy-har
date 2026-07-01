@@ -22,6 +22,10 @@ func fakeUpstream() *httptest.Server {
 		case "/v1/models":
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, `{"data":[{"id":"claude-opus-4-8"}]}`)
+		case "/v1/cookie":
+			http.SetCookie(w, &http.Cookie{Name: "sid", Value: "abc", Path: "/", HttpOnly: true, Secure: true})
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"ok":true}`)
 		case "/v1/gz":
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Encoding", "gzip")
@@ -129,6 +133,36 @@ func TestGzipResponseStoredDecompressed(t *testing.T) {
 	// decompressed content.size (gzip overhead can make a tiny body larger).
 	if h.Log.Entries[0].Response.BodySize == c.Size {
 		t.Fatalf("bodySize (wire) and content.size (decompressed) should differ; both=%d", c.Size)
+	}
+}
+
+func TestCookiesCaptured(t *testing.T) {
+	upstream := fakeUpstream()
+	defer upstream.Close()
+	base, _ := url.Parse(upstream.URL)
+	dir := t.TempDir()
+	store, _ := NewStore(dir, false)
+	proxy := httptest.NewServer(newProxy(&Config{Base: base, SessionHeader: "Session-Id"}, store))
+	defer proxy.Close()
+
+	req, _ := http.NewRequest("GET", proxy.URL+"/v1/cookie", nil)
+	req.Header.Set("Session-Id", "cook")
+	req.Header.Set("Cookie", "a=1; b=2")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	h := readHARWait(t, filepath.Join(dir, "cook.har"), 1)
+	reqC := h.Log.Entries[0].Request.Cookies
+	if len(reqC) != 2 || reqC[0].Name != "a" || reqC[1].Name != "b" {
+		t.Fatalf("request cookies not parsed: %+v", reqC)
+	}
+	respC := h.Log.Entries[0].Response.Cookies
+	if len(respC) != 1 || respC[0].Name != "sid" || respC[0].Value != "abc" || !respC[0].HTTPOnly || !respC[0].Secure {
+		t.Fatalf("response cookie not parsed: %+v", respC)
 	}
 }
 

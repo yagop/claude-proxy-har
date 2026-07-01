@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -45,9 +46,14 @@ func (s *Store) Add(session string, e HarEntry) error {
 		}
 	}
 	hlog.Entries = append(hlog.Entries, e)
-	// Keep the page's start no later than its first entry.
-	if len(hlog.Entries) == 1 && len(hlog.Pages) > 0 {
-		hlog.Pages[0].StartedDateTime = e.StartedDateTime
+	// Spec prefers entries sorted by startedDateTime (oldest first). The
+	// millisecond-precision UTC timestamps sort correctly as strings.
+	sort.SliceStable(hlog.Entries, func(i, j int) bool {
+		return hlog.Entries[i].StartedDateTime < hlog.Entries[j].StartedDateTime
+	})
+	// Keep the page's start no later than its earliest entry.
+	if len(hlog.Pages) > 0 && len(hlog.Entries) > 0 {
+		hlog.Pages[0].StartedDateTime = hlog.Entries[0].StartedDateTime
 	}
 	return s.write(key, hlog)
 }

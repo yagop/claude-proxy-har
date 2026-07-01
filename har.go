@@ -76,13 +76,23 @@ type HarNV struct {
 	Value string `json:"value"`
 }
 
+type HarCookie struct {
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	Path     string `json:"path,omitempty"`
+	Domain   string `json:"domain,omitempty"`
+	Expires  string `json:"expires,omitempty"`
+	HTTPOnly bool   `json:"httpOnly,omitempty"`
+	Secure   bool   `json:"secure,omitempty"`
+}
+
 type HarRequest struct {
 	Method      string       `json:"method"`
 	URL         string       `json:"url"`
 	HTTPVersion string       `json:"httpVersion"`
 	Headers     []HarNV      `json:"headers"`
 	QueryString []HarNV      `json:"queryString"`
-	Cookies     []HarNV      `json:"cookies"`
+	Cookies     []HarCookie  `json:"cookies"`
 	HeadersSize int          `json:"headersSize"`
 	BodySize    int          `json:"bodySize"`
 	PostData    *HarPostData `json:"postData,omitempty"`
@@ -94,15 +104,15 @@ type HarPostData struct {
 }
 
 type HarResponse struct {
-	Status      int        `json:"status"`
-	StatusText  string     `json:"statusText"`
-	HTTPVersion string     `json:"httpVersion"`
-	Headers     []HarNV    `json:"headers"`
-	Cookies     []HarNV    `json:"cookies"`
-	Content     HarContent `json:"content"`
-	RedirectURL string     `json:"redirectURL"`
-	HeadersSize int        `json:"headersSize"`
-	BodySize    int        `json:"bodySize"`
+	Status      int         `json:"status"`
+	StatusText  string      `json:"statusText"`
+	HTTPVersion string      `json:"httpVersion"`
+	Headers     []HarNV     `json:"headers"`
+	Cookies     []HarCookie `json:"cookies"`
+	Content     HarContent  `json:"content"`
+	RedirectURL string      `json:"redirectURL"`
+	HeadersSize int         `json:"headersSize"`
+	BodySize    int         `json:"bodySize"`
 }
 
 type HarContent struct {
@@ -160,6 +170,39 @@ func isSensitive(k string) bool {
 		return true
 	}
 	return false
+}
+
+// requestCookies parses the request's Cookie header into HAR cookie objects
+// (name/value only — request cookies carry no attributes).
+func requestCookies(h http.Header) []HarCookie {
+	cs := (&http.Request{Header: h}).Cookies()
+	out := make([]HarCookie, 0, len(cs))
+	for _, c := range cs {
+		out = append(out, HarCookie{Name: c.Name, Value: c.Value})
+	}
+	return out
+}
+
+// responseCookies parses Set-Cookie headers into HAR cookie objects, including
+// the attributes the server sent.
+func responseCookies(h http.Header) []HarCookie {
+	cs := (&http.Response{Header: h}).Cookies()
+	out := make([]HarCookie, 0, len(cs))
+	for _, c := range cs {
+		hc := HarCookie{
+			Name:     c.Name,
+			Value:    c.Value,
+			Path:     c.Path,
+			Domain:   c.Domain,
+			HTTPOnly: c.HttpOnly,
+			Secure:   c.Secure,
+		}
+		if !c.Expires.IsZero() {
+			hc.Expires = isoTime(c.Expires)
+		}
+		out = append(out, hc)
+	}
+	return out
 }
 
 func queryNVs(q url.Values) []HarNV {
