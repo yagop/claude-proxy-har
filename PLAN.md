@@ -34,12 +34,13 @@ Point a Claude client (Claude Code, the SDK, `curl`) at the proxy instead of
 ## CLI interface
 
 ```
-claude-proxy-har [-port 8787] [-out ./sessions] [-session-header Session-Id]
+claude-proxy-har [-host 127.0.0.1] [-port 8787] [-out ./sessions] [-session-header Session-Id]
            [-accept-encoding ""] [-hide-auth] [-pretty] [-verbose]
 ```
 
 | Flag / env | Default | Purpose |
 |---|---|---|
+| `-host` / `HOST` | `127.0.0.1` | Interface to bind (`0.0.0.0` = all interfaces) |
 | `-port` / `PORT` | `8787` | Port to listen on |
 | `-out` / `HAR_OUT` | `./sessions` | Directory for `.har` files |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Upstream target |

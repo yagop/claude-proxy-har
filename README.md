@@ -28,6 +28,7 @@ ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-proxy-har -port 8787
 
 | Flag / env | Default | Purpose |
 |---|---|---|
+| `-host` / `HOST` | `127.0.0.1` | Interface to bind (`127.0.0.1` = loopback only; `0.0.0.0` = all interfaces) |
 | `-port` / `PORT` | `8787` | Port to listen on |
 | `-out` / `HAR_OUT` | `./sessions` | Directory for `.har` files |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Upstream target |

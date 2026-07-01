@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +20,7 @@ const (
 )
 
 func main() {
+	host := flag.String("host", envOr("HOST", "127.0.0.1"), "interface to bind (127.0.0.1 = loopback only; 0.0.0.0 = all interfaces)")
 	port := flag.String("port", envOr("PORT", "8787"), "port to listen on")
 	out := flag.String("out", envOr("HAR_OUT", "./sessions"), "directory for .har files")
 	sessionHeader := flag.String("session-header", "X-Claude-Code-Session-Id", "request header used to group entries into a file")
@@ -48,10 +50,11 @@ func main() {
 		Verbose:        *verbose,
 	}
 
-	srv := &http.Server{Addr: ":" + *port, Handler: newProxy(cfg, store)}
+	addr := net.JoinHostPort(*host, *port)
+	srv := &http.Server{Addr: addr, Handler: newProxy(cfg, store)}
 
 	go func() {
-		log.Printf("claude-proxy-har listening on :%s", *port)
+		log.Printf("claude-proxy-har listening on %s", addr)
 		log.Printf("  upstream:       %s", base)
 		log.Printf("  out dir:        %s", *out)
 		log.Printf("  session header: %s", *sessionHeader)
