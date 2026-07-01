@@ -50,3 +50,53 @@ ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-har -port 8787
   Import), Chrome DevTools, and Firefox.
 
 Load a produced `.har` in Chrome DevTools (Network tab → Import HAR) to inspect.
+
+## Extracting system prompts
+
+Because the full request body is captured, you can pull the exact system prompt
+Claude Code sends for each model. Run it once per model through the proxy, then
+extract with `jq`.
+
+```sh
+# 1. Proxy running on :8787, writing to ./sessions
+./claude-har -port 8787 -out ./sessions &
+
+# 2. One capture per model (--no-session-persistence → each run gets its own .har)
+mkdir -p system-prompts
+for m in claude-opus-4-8 claude-sonnet-5 claude-haiku-4-5; do
+  ANTHROPIC_BASE_URL=http://localhost:8787 bun x @anthropic-ai/claude-code \
+    --no-session-persistence --safe-mode -p "hi" --model="$m" \
+    --exclude-dynamic-system-prompt-sections
+done
+```
+
+`--exclude-dynamic-system-prompt-sections` drops volatile bits (date, cwd, env)
+so the prompt is stable across runs.
+
+Then extract each model's main-agent prompt from the captured HARs — the request
+body is JSON stored as a string (`fromjson`), and `system` is an array of blocks.
+Select the longest entry whose `.model` matches and join its blocks:
+
+```sh
+for m in claude-opus-4-8 claude-sonnet-5 claude-haiku-4-5; do
+  jq -rs --arg m "$m" '
+    [ .[].log.entries[]
+      | (.request.postData.text? // empty) | fromjson?
+      | select(.model == $m and (.system | type == "array"))
+      | (.system | map(.text) | join("\n\n")) ]
+    | max_by(length) // empty
+  ' sessions/*.har > "system-prompts/$m.md"
+done
+```
+
+Or grab one model's prompt straight from a single session file:
+
+```sh
+jq -r '.log.entries[0].request.postData.text | fromjson | .system | map(.text) | join("\n\n")' \
+  sessions/<session-id>.har
+```
+
+> `system[0]` is Claude Code's SDK/billing marker
+> (`x-anthropic-billing-header: …`); the instruction prose follows in the next
+> blocks. Newer models get a shorter prompt (e.g. Opus 4.8 is far leaner than
+> Sonnet 4.6).
