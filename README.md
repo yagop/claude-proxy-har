@@ -24,6 +24,30 @@ Route to a non-Anthropic upstream by setting `ANTHROPIC_BASE_URL` on the proxy:
 ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-proxy-har -port 8787
 ```
 
+## Sample log output
+
+On startup the proxy prints its effective configuration, then one line per
+completed response (`method path → status  session  total-time  wire-bytes`)
+and one line whenever a session's `.har` file is opened:
+
+```
+2026/07/02 10:51:32 claude-proxy-har listening on 127.0.0.1:8787
+2026/07/02 10:51:32   upstream:       https://api.anthropic.com
+2026/07/02 10:51:32   out dir:        ./sessions
+2026/07/02 10:51:32   session header: X-Claude-Code-Session-Id
+2026/07/02 10:51:32   accept-enc:     (passthrough)
+2026/07/02 10:51:32   hide auth:      true   pretty: false   verbose: false
+2026/07/02 10:51:41 POST /v1/messages?beta=true → 200  session=6f9d2c1a-8b3e-4f5a-9c7d-2e1b0a4f6d8c  4212ms  18.3KB
+2026/07/02 10:51:41 session 6f9d2c1a-8b3e-4f5a-9c7d-2e1b0a4f6d8c -> sessions/6f9d2c1a-8b3e-4f5a-9c7d-2e1b0a4f6d8c.har (new)
+2026/07/02 10:51:44 POST /v1/messages?beta=true → 200  session=6f9d2c1a-8b3e-4f5a-9c7d-2e1b0a4f6d8c  2954ms  9.1KB
+2026/07/02 10:51:52 shutting down...
+```
+
+Re-runs against an existing session file log `(appending, N existing)` instead
+of `(new)`. With `-verbose` each request additionally logs a
+`→ POST /v1/messages?beta=true (upstream api.anthropic.com)` line as it goes
+out, plus the full HAR entry JSON once the response completes.
+
 ## Flags & env
 
 | Flag / env | Default | Purpose |
