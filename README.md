@@ -5,11 +5,23 @@
 Point a Claude client at the proxy instead of `api.anthropic.com`, and every
 request/response is captured into a `.har` file — one file per session.
 
-## 🚀 Build & run
+## 📦 Install
+
+```sh
+go install github.com/yagop/claude-proxy-har@latest
+```
+
+This drops a `claude-proxy-har` binary into `$(go env GOPATH)/bin` (usually
+`~/go/bin`). Or build from a checkout:
 
 ```sh
 go build -o claude-proxy-har .
-./claude-proxy-har -port 8787 -out ./sessions
+```
+
+## 🚀 Run
+
+```sh
+claude-proxy-har -port 8787 -out ./sessions
 ```
 
 Then point the client at the proxy:
@@ -21,7 +33,7 @@ ANTHROPIC_BASE_URL=http://localhost:8787 claude
 Route to a non-Anthropic upstream by setting `ANTHROPIC_BASE_URL` on the proxy:
 
 ```sh
-ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-proxy-har -port 8787
+ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic claude-proxy-har -port 8787
 ```
 
 ## 🪵 Sample log output
@@ -90,7 +102,7 @@ extract with `jq`.
 
 ```sh
 # 1. Proxy running on :8787, writing to ./sessions
-./claude-proxy-har -port 8787 -out ./sessions &
+claude-proxy-har -port 8787 -out ./sessions &
 
 # 2. One capture per model (--no-session-persistence → each run gets its own .har)
 mkdir -p system-prompts
