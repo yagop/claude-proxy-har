@@ -1,11 +1,11 @@
 # claude-proxy-har
 
-A tiny reverse proxy that records Claude API sessions as [HAR](http://www.softwareishard.com/blog/har-12-spec/) files.
+📼 A tiny reverse proxy that records Claude API sessions as [HAR](http://www.softwareishard.com/blog/har-12-spec/) files.
 
 Point a Claude client at the proxy instead of `api.anthropic.com`, and every
 request/response is captured into a `.har` file — one file per session.
 
-## Build & run
+## 🚀 Build & run
 
 ```sh
 go build -o claude-proxy-har .
@@ -24,7 +24,7 @@ Route to a non-Anthropic upstream by setting `ANTHROPIC_BASE_URL` on the proxy:
 ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic ./claude-proxy-har -port 8787
 ```
 
-## Sample log output
+## 🪵 Sample log output
 
 On startup the proxy prints its effective configuration, then one line per
 completed response (`method path → status  session  total-time  wire-bytes`)
@@ -48,7 +48,7 @@ of `(new)`. With `-verbose` each request additionally logs a
 `→ POST /v1/messages?beta=true (upstream api.anthropic.com)` line as it goes
 out, plus the full HAR entry JSON once the response completes.
 
-## Flags & env
+## ⚙️ Flags & env
 
 | Flag / env | Default | Purpose |
 |---|---|---|
@@ -62,7 +62,7 @@ out, plus the full HAR entry JSON once the response completes.
 | `-pretty` | off | Pretty-print the HAR JSON |
 | `-verbose` | off | Print the full HAR entry (JSON) for each request to stderr |
 
-## How it works
+## 🔍 How it works
 
 - `httputil.ReverseProxy` retargets each request onto `ANTHROPIC_BASE_URL`
   (`FlushInterval = -1` so SSE streams in real time).
@@ -76,13 +76,13 @@ out, plus the full HAR entry JSON once the response completes.
   Import), Chrome DevTools, and Firefox.
 - Compressed responses (`gzip`/`deflate`) are stored **decompressed** in
   `content.text` so viewers render the JSON (the client still receives the
-  original compressed stream). `br`/`zstd` aren't decoded (stdlib-only) — force
+  original compressed stream). ⚠️ `br`/`zstd` aren't decoded (stdlib-only) — force
   a decodable encoding with `-accept-encoding=gzip` or `-accept-encoding=identity`
   if your upstream negotiates those.
 
-Load a produced `.har` in Chrome DevTools (Network tab → Import HAR) to inspect.
+💡 Load a produced `.har` in Chrome DevTools (Network tab → Import HAR) to inspect.
 
-## Extracting system prompts
+## 🧠 Extracting system prompts
 
 Because the full request body is captured, you can pull the exact system prompt
 Claude Code sends for each model. Run it once per model through the proxy, then
